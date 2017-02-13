@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 namespace Carable.AspNetCore.Authentication.ApiKey
 {
     /// <summary>
-    /// Extension methods to add OpenIdConnect Bearer authentication capabilities to an HTTP application pipeline.
+    /// Extension methods to add Api key authentication capabilities to an HTTP application pipeline.
     /// </summary>
     public static class ApiKeyAppBuilderExtensions
     {
