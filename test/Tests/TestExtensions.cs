@@ -28,7 +28,25 @@ namespace Tests
 
             return transaction;
         }
-
+        // TODO: see if we can share the TestExtensions SendAsync method (only diff is auth header)
+        public static async Task<Transaction> SendAsyncWithAuth(this TestServer server, string uri, string authorizationHeader = null)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, uri);
+            if (!string.IsNullOrEmpty(authorizationHeader))
+            {
+                request.Headers.Add("Authorization", authorizationHeader);
+            }
+            using (var client = server.CreateClient())
+            {
+                var transaction = new Transaction
+                {
+                    Request = request,
+                    Response = await client.SendAsync(request),
+                };
+                transaction.ResponseText = await transaction.Response.Content.ReadAsStringAsync();
+                return transaction;
+            }
+        }
         public static void Describe(this HttpResponse res, ClaimsPrincipal principal)
         {
             res.StatusCode = 200;
