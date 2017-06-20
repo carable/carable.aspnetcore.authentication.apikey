@@ -2,23 +2,21 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
-using NUnit.Framework;
 using System;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
-using System.Net.Http;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Features.Authentication;
 using Microsoft.Extensions.DependencyInjection;
+using Xunit;
 
 namespace Tests
 {
-    [TestFixture]
     public class ApiKeyMiddlewareTests
     {
-        [Test]
+        [Fact]
         public void ApiKeyValidation()
         {
             var options = GetOptions();
@@ -26,26 +24,26 @@ namespace Tests
 
             var newApiKeyHeader = "Apikey 1";
             var response = server.SendAsyncWithAuth("http://example.com/oauth", newApiKeyHeader).Result;
-            Assert.AreEqual(HttpStatusCode.OK, response.Response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, response.Response.StatusCode);
         }
 
-        [Test]
+        [Fact]
         public void SignInThrows()
         {
             var server = CreateServer(new ApiKeyOptions());
             var transaction = server.SendAsync("https://example.com/signIn").Result;
-            Assert.AreEqual(HttpStatusCode.OK, transaction.Response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, transaction.Response.StatusCode);
         }
 
-        [Test]
+        [Fact]
         public void SignOutThrows()
         {
             var server = CreateServer(new ApiKeyOptions());
             var transaction = server.SendAsync("https://example.com/signOut").Result;
-            Assert.AreEqual(HttpStatusCode.OK, transaction.Response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, transaction.Response.StatusCode);
         }
 
-        [Test]
+        [Fact]
         public void ThrowAtAuthenticationFailedEvent()
         {
             var options = new ApiKeyOptions
@@ -83,36 +81,36 @@ namespace Tests
 
             var transaction = server.SendAsync("https://example.com/signIn").Result;
 
-            Assert.AreEqual(HttpStatusCode.Unauthorized, transaction.Response.StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, transaction.Response.StatusCode);
         }
 
-        [Test]
+        [Fact]
         public void NoHeaderReceived()
         {
             var server = CreateServer(new ApiKeyOptions());
             var response = server.SendAsyncWithAuth("http://example.com/oauth").Result;
-            Assert.AreEqual(HttpStatusCode.Unauthorized, response.Response.StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.Response.StatusCode);
         }
 
-        [Test]
+        [Fact]
         public void HeaderWithoutApiKeyReceived()
         {
             var server = CreateServer(new ApiKeyOptions());
             var response = server.SendAsyncWithAuth("http://example.com/oauth", "Token").Result;
-            Assert.AreEqual(HttpStatusCode.Unauthorized, response.Response.StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.Response.StatusCode);
         }
 
-        [Test]
+        [Fact]
         public void UnrecognizedApiKeyReceived()
         {
             var server = CreateServer(new ApiKeyOptions());
 
             var response = server.SendAsyncWithAuth("http://example.com/oauth", "Apikey someblob").Result;
-            Assert.AreEqual(HttpStatusCode.Unauthorized, response.Response.StatusCode);
-            Assert.AreEqual("", response.ResponseText);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.Response.StatusCode);
+            Assert.Equal("", response.ResponseText);
         }
 
-        [Test]
+        [Fact]
         public void InvalidApiKeyReceived()
         {
             var options = new ApiKeyOptions();
@@ -121,14 +119,14 @@ namespace Tests
             var server = CreateServer(options);
 
             var response = server.SendAsyncWithAuth("http://example.com/oauth", "Apikey someblob").Result;
-            Assert.AreEqual(HttpStatusCode.Unauthorized, response.Response.StatusCode);
-            Assert.AreEqual("Apikey error=\"invalid_api_key\"", response.Response.Headers.WwwAuthenticate.First().ToString());
-            Assert.AreEqual("", response.ResponseText);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.Response.StatusCode);
+            Assert.Equal("Apikey error=\"invalid_api_key\"", response.Response.Headers.WwwAuthenticate.First().ToString());
+            Assert.Equal("", response.ResponseText);
         }
 
 
-        [Test]
-        [TestCase(typeof(ArgumentException))]
+        [Theory]
+        [InlineData(typeof(ArgumentException))]
         public void ExceptionNotReportedInHeaderForOtherFailures(Type errorType)
         {
             var options = new ApiKeyOptions();
@@ -137,13 +135,13 @@ namespace Tests
             var server = CreateServer(options);
 
             var response = server.SendAsyncWithAuth("http://example.com/oauth", "Apikey someblob").Result;
-            Assert.AreEqual(HttpStatusCode.Unauthorized, response.Response.StatusCode);
-            Assert.AreEqual("Apikey error=\"invalid_api_key\"", response.Response.Headers.WwwAuthenticate.First().ToString());
-            Assert.AreEqual("", response.ResponseText);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.Response.StatusCode);
+            Assert.Equal("Apikey error=\"invalid_api_key\"", response.Response.Headers.WwwAuthenticate.First().ToString());
+            Assert.Equal("", response.ResponseText);
         }
 
 
-        [Test]
+        [Fact]
         public void ExceptionNotReportedInHeaderWhenIncludeErrorDetailsIsFalse()
         {
             var server = CreateServer(new ApiKeyOptions
@@ -152,23 +150,23 @@ namespace Tests
             });
 
             var response = server.SendAsyncWithAuth("http://example.com/oauth", "Apikey someblob").Result;
-            Assert.AreEqual(HttpStatusCode.Unauthorized, response.Response.StatusCode);
-            Assert.AreEqual("Apikey", response.Response.Headers.WwwAuthenticate.First().ToString());
-            Assert.AreEqual("", response.ResponseText);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.Response.StatusCode);
+            Assert.Equal("Apikey", response.Response.Headers.WwwAuthenticate.First().ToString());
+            Assert.Equal("", response.ResponseText);
         }
 
-        [Test]
+        [Fact]
         public void ExceptionNotReportedInHeaderWhenTokenWasMissing()
         {
             var server = CreateServer(new ApiKeyOptions());
 
             var response = server.SendAsyncWithAuth( "http://example.com/oauth").Result;
-            Assert.AreEqual(HttpStatusCode.Unauthorized, response.Response.StatusCode);
-            Assert.AreEqual("Apikey", response.Response.Headers.WwwAuthenticate.First().ToString());
-            Assert.AreEqual("", response.ResponseText);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.Response.StatusCode);
+            Assert.Equal("Apikey", response.Response.Headers.WwwAuthenticate.First().ToString());
+            Assert.Equal("", response.ResponseText);
         }
 
-        [Test]
+        [Fact]
         public void CustomTokenValidated()
         {
             var options = new ApiKeyOptions
@@ -182,7 +180,7 @@ namespace Tests
                         var identity = (ClaimsIdentity)context.Ticket.Principal.Identity;
                         var identifier = identity.FindFirst(ClaimTypes.NameIdentifier);
 
-                        Assert.AreEqual("Bob le Tout Puissant", identifier.Value);
+                        Assert.Equal("Bob le Tout Puissant", identifier.Value);
 
                         // Remove the existing NameIdentifier claim and replace it
                         // with a new one containing a different value.
@@ -200,11 +198,11 @@ namespace Tests
             var server = CreateServer(options);
 
             var response = server.SendAsyncWithAuth( "http://example.com/oauth", "apikey someblob").Result;
-            Assert.AreEqual(HttpStatusCode.OK, response.Response.StatusCode);
-            Assert.AreEqual("Bob le Magnifique", response.ResponseText);
+            Assert.Equal(HttpStatusCode.OK, response.Response.StatusCode);
+            Assert.Equal("Bob le Magnifique", response.ResponseText);
         }
 
-        [Test]
+        [Fact]
         public void ApikeyTurns401To403IfAuthenticated()
         {
             var options = new ApiKeyOptions();
@@ -213,19 +211,19 @@ namespace Tests
             var server = CreateServer(options);
 
             var response = server.SendAsyncWithAuth( "http://example.com/unauthorized", "ApiKey Key").Result;
-            Assert.AreEqual(HttpStatusCode.Forbidden, response.Response.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, response.Response.StatusCode);
         }
 
-        [Test]
+        [Fact]
         public void ApikeyDoesNothingTo401IfNotAuthenticated()
         {
             var server = CreateServer(new ApiKeyOptions());
 
             var response = server.SendAsyncWithAuth( "http://example.com/unauthorized").Result;
-            Assert.AreEqual(HttpStatusCode.Unauthorized, response.Response.StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.Response.StatusCode);
         }
 
-        [Test]
+        [Fact]
         public void EventOnMessageReceivedSkipped_NoMoreEventsExecuted()
         {
             var server = CreateServer(new ApiKeyOptions
@@ -253,11 +251,11 @@ namespace Tests
             });
 
             var response = server.SendAsyncWithAuth( "http://example.com/checkforerrors", "ApiKey Key").Result;
-            Assert.AreEqual(HttpStatusCode.OK, response.Response.StatusCode);
-            Assert.AreEqual(string.Empty, response.ResponseText);
+            Assert.Equal(HttpStatusCode.OK, response.Response.StatusCode);
+            Assert.Equal(string.Empty, response.ResponseText);
         }
 
-        [Test]
+        [Fact]
         public void EventOnMessageReceivedHandled_NoMoreEventsExecuted()
         {
             var server = CreateServer(new ApiKeyOptions
@@ -286,11 +284,11 @@ namespace Tests
             });
 
             var response = server.SendAsyncWithAuth( "http://example.com/checkforerrors", "ApiKey Key").Result;
-            Assert.AreEqual(HttpStatusCode.Accepted, response.Response.StatusCode);
-            Assert.AreEqual(string.Empty, response.ResponseText);
+            Assert.Equal(HttpStatusCode.Accepted, response.Response.StatusCode);
+            Assert.Equal(string.Empty, response.ResponseText);
         }
 
-        [Test]
+        [Fact]
         public void EventOnTokenValidatedSkipped_NoMoreEventsExecuted()
         {
             var options = new ApiKeyOptions
@@ -317,11 +315,11 @@ namespace Tests
             var server = CreateServer(options);
 
             var response = server.SendAsyncWithAuth( "http://example.com/checkforerrors", "ApiKey Key").Result;
-            Assert.AreEqual(HttpStatusCode.OK, response.Response.StatusCode);
-            Assert.AreEqual(string.Empty, response.ResponseText);
+            Assert.Equal(HttpStatusCode.OK, response.Response.StatusCode);
+            Assert.Equal(string.Empty, response.ResponseText);
         }
 
-        [Test]
+        [Fact]
         public void EventOnTokenValidatedHandled_NoMoreEventsExecuted()
         {
             var options = new ApiKeyOptions
@@ -349,11 +347,11 @@ namespace Tests
             var server = CreateServer(options);
 
             var response = server.SendAsyncWithAuth( "http://example.com/checkforerrors", "ApiKey Key").Result;
-            Assert.AreEqual(HttpStatusCode.Accepted, response.Response.StatusCode);
-            Assert.AreEqual(string.Empty, response.ResponseText);
+            Assert.Equal(HttpStatusCode.Accepted, response.Response.StatusCode);
+            Assert.Equal(string.Empty, response.ResponseText);
         }
 
-        [Test]
+        [Fact]
         public void EventOnAuthenticationFailedSkipped_NoMoreEventsExecuted()
         {
             var options = new ApiKeyOptions
@@ -380,11 +378,11 @@ namespace Tests
             var server = CreateServer(options);
 
             var response = server.SendAsyncWithAuth( "http://example.com/checkforerrors", "ApiKey Key").Result;
-            Assert.AreEqual(HttpStatusCode.OK, response.Response.StatusCode);
-            Assert.AreEqual(string.Empty, response.ResponseText);
+            Assert.Equal(HttpStatusCode.OK, response.Response.StatusCode);
+            Assert.Equal(string.Empty, response.ResponseText);
         }
 
-        [Test]
+        [Fact]
         public void EventOnAuthenticationFailedHandled_NoMoreEventsExecuted()
         {
             var options = new ApiKeyOptions
@@ -412,11 +410,11 @@ namespace Tests
             var server = CreateServer(options);
 
             var response = server.SendAsyncWithAuth( "http://example.com/checkforerrors", "ApiKey Key").Result;
-            Assert.AreEqual(HttpStatusCode.Accepted, response.Response.StatusCode);
-            Assert.AreEqual(string.Empty, response.ResponseText);
+            Assert.Equal(HttpStatusCode.Accepted, response.Response.StatusCode);
+            Assert.Equal(string.Empty, response.ResponseText);
         }
 
-        [Test]
+        [Fact]
         public void EventOnChallengeSkipped_ResponseNotModified()
         {
             var server = CreateServer(new ApiKeyOptions
@@ -432,12 +430,12 @@ namespace Tests
             });
 
             var response = server.SendAsyncWithAuth( "http://example.com/unauthorized", "ApiKey Key").Result;
-            Assert.AreEqual(HttpStatusCode.OK, response.Response.StatusCode);
-            Assert.IsEmpty(response.Response.Headers.WwwAuthenticate);
-            Assert.AreEqual(string.Empty, response.ResponseText);
+            Assert.Equal(HttpStatusCode.OK, response.Response.StatusCode);
+            Assert.Empty(response.Response.Headers.WwwAuthenticate);
+            Assert.Equal(string.Empty, response.ResponseText);
         }
 
-        [Test]
+        [Fact]
         public void EventOnChallengeHandled_ResponseNotModified()
         {
             var server = CreateServer(new ApiKeyOptions
@@ -454,9 +452,9 @@ namespace Tests
             });
 
             var response = server.SendAsyncWithAuth( "http://example.com/unauthorized", "ApiKey Key").Result;
-            Assert.AreEqual(HttpStatusCode.Accepted, response.Response.StatusCode);
-            Assert.IsEmpty(response.Response.Headers.WwwAuthenticate);
-            Assert.AreEqual(string.Empty, response.ResponseText);
+            Assert.Equal(HttpStatusCode.Accepted, response.Response.StatusCode);
+            Assert.Empty(response.Response.Headers.WwwAuthenticate);
+            Assert.Equal(string.Empty, response.ResponseText);
         }
 
         private static TestServer CreateServer(ApiKeyOptions options)

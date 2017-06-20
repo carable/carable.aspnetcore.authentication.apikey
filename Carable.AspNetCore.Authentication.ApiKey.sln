@@ -1,23 +1,22 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.26114.2
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{44E27250-33D4-4AA0-850A-55593C4B11C5}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{18AA84F8-A98C-449A-8517-AF9E999EC955}"
 	ProjectSection(SolutionItems) = preProject
-		global.json = global.json
 		README.md = README.md
 	EndProjectSection
 EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "Carable.AspNetCore.Authentication.ApiKey", "src\Carable.AspNetCore.Authentication.ApiKey\Carable.AspNetCore.Authentication.ApiKey.xproj", "{D282518E-BEF9-44D1-BBD6-0069DF4A32DF}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Carable.AspNetCore.Authentication.ApiKey", "src\Carable.AspNetCore.Authentication.ApiKey\Carable.AspNetCore.Authentication.ApiKey.csproj", "{D282518E-BEF9-44D1-BBD6-0069DF4A32DF}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{C59B09F2-A802-4FC7-B00E-83E883101BBB}"
 EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "Tests", "test\Tests\Tests.xproj", "{FF34FAD8-A8FC-401C-A00D-73F0A8F6357F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "test\Tests\Tests.csproj", "{FF34FAD8-A8FC-401C-A00D-73F0A8F6357F}"
 EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "GenerateApiKey", "src\GenerateApiKey\GenerateApiKey.xproj", "{9F51B467-3CAF-4422-A614-E614AE801419}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GenerateApiKey", "src\GenerateApiKey\GenerateApiKey.csproj", "{9F51B467-3CAF-4422-A614-E614AE801419}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
