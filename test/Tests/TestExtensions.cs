@@ -9,6 +9,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using System.Net.Http.Headers;
 
 namespace Tests
 {
@@ -34,7 +35,15 @@ namespace Tests
             var request = new HttpRequestMessage(HttpMethod.Get, uri);
             if (!string.IsNullOrEmpty(authorizationHeader))
             {
-                request.Headers.Add("Authorization", authorizationHeader);
+                var h = authorizationHeader.Split(' ');
+                if (h.Length != 2) // just set the auth value directly
+                {
+                    request.Headers.Add("Authorization", authorizationHeader);
+                }
+                else
+                {
+                    request.Headers.Authorization = new AuthenticationHeaderValue(h[0], h[1]);
+                }
             }
             using (var client = server.CreateClient())
             {
