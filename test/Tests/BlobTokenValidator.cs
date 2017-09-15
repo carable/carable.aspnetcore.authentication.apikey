@@ -1,34 +1,33 @@
 ﻿using System;
 using System.Security.Claims;
+using Carable.AspNetCore.Authentication.ApiKey;
 
 namespace Tests
 {
-    public partial class ApiKeyMiddlewareTests
+    class BlobTokenValidator : ISecurityApiKeyValidator
     {
-        class BlobTokenValidator : ISecurityApiKeyValidator
+        private Action<string> _tokenValidator;
+        public BlobTokenValidator()
         {
-            private Action<string> _tokenValidator;
-            public BlobTokenValidator()
-            {
 
-            }
+        }
 
-            public BlobTokenValidator(Action<string> tokenValidator)
-            {
-                _tokenValidator = tokenValidator;
-            }
+        public BlobTokenValidator(Action<string> tokenValidator)
+        {
+            _tokenValidator = tokenValidator;
+        }
 
-            public bool CanReadApiKey(string apiKey)
-            {
-                return true;
-            }
+        public bool CanReadApiKey(string apiKey)
+        {
+            return true;
+        }
 
-            public ClaimsPrincipal ValidateApiKey(ApiKeyValidationContext context, string apiKey, out ValidatedApiKey validatedApiKey)
+        public ClaimsPrincipal ValidateApiKey(ApiKeyValidationContext context, string apiKey, out ValidatedApiKey validatedApiKey)
+        {
+            validatedApiKey = new ValidatedApiKey();
+            _tokenValidator?.Invoke(apiKey);
+            var claims = new[]
             {
-                validatedApiKey = new ValidatedApiKey();
-                _tokenValidator?.Invoke(apiKey);
-                var claims = new[]
-                {
                     // Make sure to use a different name identifier
                     // than the one defined by CustomTokenValidated.
                     new Claim(ClaimTypes.NameIdentifier, "Bob le Tout Puissant"),
@@ -36,8 +35,7 @@ namespace Tests
                     new Claim(ClaimsIdentity.DefaultNameClaimType, "bob"),
                 };
 
-                return new ClaimsPrincipal(new ClaimsIdentity(claims, context.Options.AuthenticationScheme));
-            }
+            return new ClaimsPrincipal(new ClaimsIdentity(claims, context.Options.AuthenticationScheme));
         }
     }
 }
