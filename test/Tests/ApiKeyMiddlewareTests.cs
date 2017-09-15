@@ -14,7 +14,7 @@ using Microsoft.AspNetCore.Authentication;
 
 namespace Tests
 {
-    public class ApiKeyMiddlewareTests
+    public partial class ApiKeyMiddlewareTests
     {
         [Fact]
         public void ApiKeyValidation()
@@ -450,68 +450,6 @@ namespace Tests
             AuthenticationProperties properties = null)
         {
             return TestServerBuilder.CreateServer(options, handlerBeforeAuth, properties);
-        }
-
-        class BlobTokenValidator : ISecurityApiKeyValidator
-        {
-            private Action<string> _tokenValidator;
-            public BlobTokenValidator()
-            {
-
-            }
-
-            public BlobTokenValidator(Action<string> tokenValidator)
-            {
-                _tokenValidator = tokenValidator;
-            }
-
-            public bool CanReadApiKey(string apiKey)
-            {
-                return true;
-            }
-
-            public ClaimsPrincipal ValidateApiKey(ApiKeyValidationContext context, string apiKey, out ValidatedApiKey validatedApiKey)
-            {
-                validatedApiKey = new ValidatedApiKey();
-                _tokenValidator?.Invoke(apiKey);
-                var claims = new[]
-                {
-                    // Make sure to use a different name identifier
-                    // than the one defined by CustomTokenValidated.
-                    new Claim(ClaimTypes.NameIdentifier, "Bob le Tout Puissant"),
-                    new Claim(ClaimTypes.Email, "bob@contoso.com"),
-                    new Claim(ClaimsIdentity.DefaultNameClaimType, "bob"),
-                };
-
-                return new ClaimsPrincipal(new ClaimsIdentity(claims, context.Options.AuthenticationScheme));
-            }
-        }
-        class InvalidApiKeyValidator : ISecurityApiKeyValidator
-        {
-            private Type errorType;
-
-            public InvalidApiKeyValidator(Type errorType)
-            {
-                this.errorType = errorType;
-            }
-            public InvalidApiKeyValidator()
-            {
-            }
-
-            public ClaimsPrincipal ValidateApiKey(ApiKeyValidationContext context, string apiKey, out ValidatedApiKey validatedApiKey)
-            {
-                if (errorType != null)
-                {
-                    var err = (Exception)Activator.CreateInstance(errorType);
-                    throw err;
-                }
-                throw new Exception();
-            }
-
-            public bool CanReadApiKey(string apiKey)
-            {
-                return true;
-            }
         }
 
         private static Action<ApiKeyOptions> GetOptions()
