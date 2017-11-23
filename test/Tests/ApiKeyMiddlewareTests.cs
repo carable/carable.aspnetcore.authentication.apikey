@@ -1,5 +1,4 @@
 ﻿using Carable.AspNetCore.Authentication.ApiKey;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using System;
@@ -7,14 +6,15 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http.Features.Authentication;
-using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using System.Net.Http;
+using System.Xml.Linq;
+using System.Collections.Generic;
+using Microsoft.AspNetCore.Authentication;
 
 namespace Tests
 {
-    public class ApiKeyMiddlewareTests
+    public partial class ApiKeyMiddlewareTests
     {
         [Fact]
         public void ApiKeyValidation()
@@ -30,7 +30,7 @@ namespace Tests
         [Fact]
         public void SignInThrows()
         {
-            var server = CreateServer(new ApiKeyOptions());
+            var server = CreateServer();
             var transaction = server.SendAsync("https://example.com/signIn").Result;
             Assert.Equal(HttpStatusCode.OK, transaction.Response.StatusCode);
         }
@@ -38,7 +38,7 @@ namespace Tests
         [Fact]
         public void SignOutThrows()
         {
-            var server = CreateServer(new ApiKeyOptions());
+            var server = CreateServer();
             var transaction = server.SendAsync("https://example.com/signOut").Result;
             Assert.Equal(HttpStatusCode.OK, transaction.Response.StatusCode);
         }
@@ -46,9 +46,10 @@ namespace Tests
         [Fact]
         public void ThrowAtAuthenticationFailedEvent()
         {
-            var options = new ApiKeyOptions
+
+            var server = CreateServer(options =>
             {
-                Events = new ApiKeyEvents
+                options.Events = new ApiKeyEvents
                 {
                     OnAuthenticationFailed = context =>
                     {
@@ -60,12 +61,10 @@ namespace Tests
                         context.Token = "something";
                         return Task.FromResult(0);
                     }
-                }
-            };
-            options.SecurityValidators.Clear();
-            options.SecurityValidators.Insert(0, new InvalidApiKeyValidator());
-
-            var server = CreateServer(options, async (context, next) =>
+                };
+                options.SecurityValidators.Clear();
+                options.SecurityValidators.Insert(0, new InvalidApiKeyValidator());
+            }, async (context, next) =>
             {
                 try
                 {
@@ -87,7 +86,7 @@ namespace Tests
         [Fact]
         public void NoHeaderReceived()
         {
-            var server = CreateServer(new ApiKeyOptions());
+            var server = CreateServer();
             var response = server.SendAsyncWithAuth("http://example.com/oauth").Result;
             Assert.Equal(HttpStatusCode.Unauthorized, response.Response.StatusCode);
         }
@@ -95,7 +94,7 @@ namespace Tests
         [Fact]
         public void HeaderWithoutApiKeyReceived()
         {
-            var server = CreateServer(new ApiKeyOptions());
+            var server = CreateServer();
             var response = server.SendAsyncWithAuth("http://example.com/oauth", "Token").Result;
             Assert.Equal(HttpStatusCode.Unauthorized, response.Response.StatusCode);
         }
@@ -103,7 +102,7 @@ namespace Tests
         [Fact]
         public void UnrecognizedApiKeyReceived()
         {
-            var server = CreateServer(new ApiKeyOptions());
+            var server = CreateServer();
 
             var response = server.SendAsyncWithAuth("http://example.com/oauth", "Apikey someblob").Result;
             Assert.Equal(HttpStatusCode.Unauthorized, response.Response.StatusCode);
@@ -113,10 +112,11 @@ namespace Tests
         [Fact]
         public void InvalidApiKeyReceived()
         {
-            var options = new ApiKeyOptions();
-            options.SecurityValidators.Clear();
-            options.SecurityValidators.Add(new InvalidApiKeyValidator());
-            var server = CreateServer(options);
+            var server = CreateServer(options =>
+            {
+                options.SecurityValidators.Clear();
+                options.SecurityValidators.Add(new InvalidApiKeyValidator());
+            });
 
             var response = server.SendAsyncWithAuth("http://example.com/oauth", "Apikey someblob").Result;
             Assert.Equal(HttpStatusCode.Unauthorized, response.Response.StatusCode);
@@ -129,10 +129,11 @@ namespace Tests
         [InlineData(typeof(ArgumentException))]
         public void ExceptionNotReportedInHeaderForOtherFailures(Type errorType)
         {
-            var options = new ApiKeyOptions();
-            options.SecurityValidators.Clear();
-            options.SecurityValidators.Add(new InvalidApiKeyValidator(errorType));
-            var server = CreateServer(options);
+            var server = CreateServer(options =>
+            {
+                options.SecurityValidators.Clear();
+                options.SecurityValidators.Add(new InvalidApiKeyValidator(errorType));
+            });
 
             var response = server.SendAsyncWithAuth("http://example.com/oauth", "Apikey someblob").Result;
             Assert.Equal(HttpStatusCode.Unauthorized, response.Response.StatusCode);
@@ -144,9 +145,9 @@ namespace Tests
         [Fact]
         public void ExceptionNotReportedInHeaderWhenIncludeErrorDetailsIsFalse()
         {
-            var server = CreateServer(new ApiKeyOptions
+            var server = CreateServer(opts =>
             {
-                IncludeErrorDetails = false
+                opts.IncludeErrorDetails = false;
             });
 
             var response = server.SendAsyncWithAuth("http://example.com/oauth", "Apikey someblob").Result;
@@ -158,9 +159,9 @@ namespace Tests
         [Fact]
         public void ExceptionNotReportedInHeaderWhenTokenWasMissing()
         {
-            var server = CreateServer(new ApiKeyOptions());
+            var server = CreateServer();
 
-            var response = server.SendAsyncWithAuth( "http://example.com/oauth").Result;
+            var response = server.SendAsyncWithAuth("http://example.com/oauth").Result;
             Assert.Equal(HttpStatusCode.Unauthorized, response.Response.StatusCode);
             Assert.Equal("Apikey", response.Response.Headers.WwwAuthenticate.First().ToString());
             Assert.Equal("", response.ResponseText);
@@ -169,15 +170,15 @@ namespace Tests
         [Fact]
         public void CustomTokenValidated()
         {
-            var options = new ApiKeyOptions
+            var server = CreateServer(options =>
             {
-                Events = new ApiKeyEvents()
+                options.Events = new ApiKeyEvents()
                 {
                     OnApiKeyValidated = context =>
                     {
                         // Retrieve the NameIdentifier claim from the identity
                         // returned by the custom security token validator.
-                        var identity = (ClaimsIdentity)context.Ticket.Principal.Identity;
+                        var identity = (ClaimsIdentity)context.Principal.Identity;
                         var identifier = identity.FindFirst(ClaimTypes.NameIdentifier);
 
                         Assert.Equal("Bob le Tout Puissant", identifier.Value);
@@ -191,48 +192,35 @@ namespace Tests
 
                         return Task.FromResult<object>(null);
                     }
-                }
-            };
-            options.SecurityValidators.Clear();
-            options.SecurityValidators.Add(new BlobTokenValidator());
-            var server = CreateServer(options);
+                };
+                options.SecurityValidators.Clear();
+                options.SecurityValidators.Add(new BlobTokenValidator());
+            });
 
-            var response = server.SendAsyncWithAuth( "http://example.com/oauth", "apikey someblob").Result;
+            var response = server.SendAsyncWithAuth("http://example.com/oauth", "apikey someblob").Result;
             Assert.Equal(HttpStatusCode.OK, response.Response.StatusCode);
             Assert.Equal("Bob le Magnifique", response.ResponseText);
         }
 
         [Fact]
-        public void ApikeyTurns401To403IfAuthenticated()
-        {
-            var options = new ApiKeyOptions();
-            options.SecurityValidators.Clear();
-            options.SecurityValidators.Add(new BlobTokenValidator());
-            var server = CreateServer(options);
-
-            var response = server.SendAsyncWithAuth( "http://example.com/unauthorized", "ApiKey Key").Result;
-            Assert.Equal(HttpStatusCode.Forbidden, response.Response.StatusCode);
-        }
-
-        [Fact]
         public void ApikeyDoesNothingTo401IfNotAuthenticated()
         {
-            var server = CreateServer(new ApiKeyOptions());
+            var server = CreateServer();
 
-            var response = server.SendAsyncWithAuth( "http://example.com/unauthorized").Result;
+            var response = server.SendAsyncWithAuth("http://example.com/unauthorized").Result;
             Assert.Equal(HttpStatusCode.Unauthorized, response.Response.StatusCode);
         }
 
         [Fact]
         public void EventOnMessageReceivedSkipped_NoMoreEventsExecuted()
         {
-            var server = CreateServer(new ApiKeyOptions
+            var server = CreateServer(opts =>
             {
-                Events = new ApiKeyEvents()
+                opts.Events = new ApiKeyEvents()
                 {
                     OnMessageReceived = context =>
                     {
-                        context.SkipToNextMiddleware();
+                        context.NoResult();
                         return Task.FromResult(0);
                     },
                     OnApiKeyValidated = context =>
@@ -247,24 +235,24 @@ namespace Tests
                     {
                         throw new NotImplementedException();
                     },
-                }
+                };
             });
 
-            var response = server.SendAsyncWithAuth( "http://example.com/checkforerrors", "ApiKey Key").Result;
+            var response = server.SendAsyncWithAuth("http://example.com/checkforerrors", "ApiKey Key").Result;
             Assert.Equal(HttpStatusCode.OK, response.Response.StatusCode);
             Assert.Equal(string.Empty, response.ResponseText);
         }
 
         [Fact]
-        public void EventOnMessageReceivedHandled_NoMoreEventsExecuted()
+        public async Task EventOnMessageReceivedReject_NoMoreEventsExecuted()
         {
-            var server = CreateServer(new ApiKeyOptions
+            var server = CreateServer(opts =>
             {
-                Events = new ApiKeyEvents()
+                opts.Events = new ApiKeyEvents()
                 {
                     OnMessageReceived = context =>
                     {
-                        context.HandleResponse();
+                        context.Fail("Authentication was aborted from user code.");
                         context.Response.StatusCode = StatusCodes.Status202Accepted;
                         return Task.FromResult(0);
                     },
@@ -280,24 +268,26 @@ namespace Tests
                     {
                         throw new NotImplementedException();
                     },
-                }
+                };
+            });
+            var exception = await Assert.ThrowsAsync<Exception>(delegate
+            {
+                return SendAsync(server, "http://example.com/checkforerrors", "ApiKey Key");
             });
 
-            var response = server.SendAsyncWithAuth( "http://example.com/checkforerrors", "ApiKey Key").Result;
-            Assert.Equal(HttpStatusCode.Accepted, response.Response.StatusCode);
-            Assert.Equal(string.Empty, response.ResponseText);
+            Assert.Equal("Authentication was aborted from user code.", exception.InnerException.Message);
         }
 
         [Fact]
         public void EventOnTokenValidatedSkipped_NoMoreEventsExecuted()
         {
-            var options = new ApiKeyOptions
+            var server = CreateServer(options =>
             {
-                Events = new ApiKeyEvents()
+                options.Events = new ApiKeyEvents()
                 {
                     OnApiKeyValidated = context =>
                     {
-                        context.SkipToNextMiddleware();
+                        context.NoResult();
                         return Task.FromResult(0);
                     },
                     OnAuthenticationFailed = context =>
@@ -308,13 +298,12 @@ namespace Tests
                     {
                         throw new NotImplementedException();
                     },
-                }
-            };
-            options.SecurityValidators.Clear();
-            options.SecurityValidators.Add(new BlobTokenValidator());
-            var server = CreateServer(options);
+                };
+                options.SecurityValidators.Clear();
+                options.SecurityValidators.Add(new BlobTokenValidator());
+            });
 
-            var response = server.SendAsyncWithAuth( "http://example.com/checkforerrors", "ApiKey Key").Result;
+            var response = server.SendAsyncWithAuth("http://example.com/checkforerrors", "ApiKey Key").Result;
             Assert.Equal(HttpStatusCode.OK, response.Response.StatusCode);
             Assert.Equal(string.Empty, response.ResponseText);
         }
@@ -322,13 +311,13 @@ namespace Tests
         [Fact]
         public void EventOnTokenValidatedHandled_NoMoreEventsExecuted()
         {
-            var options = new ApiKeyOptions
+            var server = CreateServer(options =>
             {
-                Events = new ApiKeyEvents()
+                options.Events = new ApiKeyEvents()
                 {
                     OnApiKeyValidated = context =>
                     {
-                        context.HandleResponse();
+                        context.NoResult();
                         context.Response.StatusCode = StatusCodes.Status202Accepted;
                         return Task.FromResult(0);
                     },
@@ -340,13 +329,12 @@ namespace Tests
                     {
                         throw new NotImplementedException();
                     },
-                }
-            };
-            options.SecurityValidators.Clear();
-            options.SecurityValidators.Add(new BlobTokenValidator());
-            var server = CreateServer(options);
+                };
+                options.SecurityValidators.Clear();
+                options.SecurityValidators.Add(new BlobTokenValidator());
+            });
 
-            var response = server.SendAsyncWithAuth( "http://example.com/checkforerrors", "ApiKey Key").Result;
+            var response = server.SendAsyncWithAuth("http://example.com/checkforerrors", "ApiKey Key").Result;
             Assert.Equal(HttpStatusCode.Accepted, response.Response.StatusCode);
             Assert.Equal(string.Empty, response.ResponseText);
         }
@@ -354,9 +342,10 @@ namespace Tests
         [Fact]
         public void EventOnAuthenticationFailedSkipped_NoMoreEventsExecuted()
         {
-            var options = new ApiKeyOptions
+
+            var server = CreateServer(options =>
             {
-                Events = new ApiKeyEvents()
+                options.Events = new ApiKeyEvents()
                 {
                     OnApiKeyValidated = context =>
                     {
@@ -364,30 +353,30 @@ namespace Tests
                     },
                     OnAuthenticationFailed = context =>
                     {
-                        context.SkipToNextMiddleware();
+                        context.NoResult();
                         return Task.FromResult(0);
                     },
                     OnChallenge = context =>
                     {
                         throw new NotImplementedException();
                     },
-                }
-            };
-            options.SecurityValidators.Clear();
-            options.SecurityValidators.Add(new BlobTokenValidator());
-            var server = CreateServer(options);
+                };
+                options.SecurityValidators.Clear();
+                options.SecurityValidators.Add(new BlobTokenValidator());
 
-            var response = server.SendAsyncWithAuth( "http://example.com/checkforerrors", "ApiKey Key").Result;
+            });
+
+            var response = server.SendAsyncWithAuth("http://example.com/checkforerrors", "ApiKey Key").Result;
             Assert.Equal(HttpStatusCode.OK, response.Response.StatusCode);
             Assert.Equal(string.Empty, response.ResponseText);
         }
 
         [Fact]
-        public void EventOnAuthenticationFailedHandled_NoMoreEventsExecuted()
+        public void EventOnAuthenticationFailedSkip_NoMoreEventsExecuted()
         {
-            var options = new ApiKeyOptions
+            var server = CreateServer(options =>
             {
-                Events = new ApiKeyEvents()
+                options.Events = new ApiKeyEvents()
                 {
                     OnApiKeyValidated = context =>
                     {
@@ -395,41 +384,40 @@ namespace Tests
                     },
                     OnAuthenticationFailed = context =>
                     {
-                        context.HandleResponse();
-                        context.Response.StatusCode = StatusCodes.Status202Accepted;
+                        context.NoResult();
                         return Task.FromResult(0);
                     },
                     OnChallenge = context =>
                     {
                         throw new NotImplementedException();
                     },
-                }
-            };
-            options.SecurityValidators.Clear();
-            options.SecurityValidators.Add(new BlobTokenValidator());
-            var server = CreateServer(options);
+                };
+                options.SecurityValidators.Clear();
+                options.SecurityValidators.Add(new BlobTokenValidator());
 
-            var response = server.SendAsyncWithAuth( "http://example.com/checkforerrors", "ApiKey Key").Result;
-            Assert.Equal(HttpStatusCode.Accepted, response.Response.StatusCode);
+            });
+
+            var response = server.SendAsyncWithAuth("http://example.com/checkforerrors", "ApiKey Key").Result;
+            Assert.Equal(HttpStatusCode.OK, response.Response.StatusCode);
             Assert.Equal(string.Empty, response.ResponseText);
         }
 
         [Fact]
         public void EventOnChallengeSkipped_ResponseNotModified()
         {
-            var server = CreateServer(new ApiKeyOptions
+            var server = CreateServer(opts =>
             {
-                Events = new ApiKeyEvents()
+                opts.Events = new ApiKeyEvents()
                 {
                     OnChallenge = context =>
                     {
-                        context.SkipToNextMiddleware();
+                        context.HandleResponse();
                         return Task.FromResult(0);
                     },
-                }
+                };
             });
 
-            var response = server.SendAsyncWithAuth( "http://example.com/unauthorized", "ApiKey Key").Result;
+            var response = server.SendAsyncWithAuth("http://example.com/unauthorized", "ApiKey Key").Result;
             Assert.Equal(HttpStatusCode.OK, response.Response.StatusCode);
             Assert.Empty(response.Response.Headers.WwwAuthenticate);
             Assert.Equal(string.Empty, response.ResponseText);
@@ -438,9 +426,9 @@ namespace Tests
         [Fact]
         public void EventOnChallengeHandled_ResponseNotModified()
         {
-            var server = CreateServer(new ApiKeyOptions
+            var server = CreateServer(opt =>
             {
-                Events = new ApiKeyEvents()
+                opt.Events = new ApiKeyEvents()
                 {
                     OnChallenge = context =>
                     {
@@ -448,161 +436,55 @@ namespace Tests
                         context.Response.StatusCode = StatusCodes.Status202Accepted;
                         return Task.FromResult(0);
                     },
-                }
+                };
             });
 
-            var response = server.SendAsyncWithAuth( "http://example.com/unauthorized", "ApiKey Key").Result;
+            var response = server.SendAsyncWithAuth("http://example.com/unauthorized", "ApiKey Key").Result;
             Assert.Equal(HttpStatusCode.Accepted, response.Response.StatusCode);
             Assert.Empty(response.Response.Headers.WwwAuthenticate);
             Assert.Equal(string.Empty, response.ResponseText);
         }
 
-        private static TestServer CreateServer(ApiKeyOptions options)
+        private static TestServer CreateServer(Action<ApiKeyOptions> options = null,
+            Func<HttpContext, Func<Task>, Task> handlerBeforeAuth = null,
+            AuthenticationProperties properties = null)
         {
-            return CreateServer(options, handlerBeforeAuth: null);
+            return TestServerBuilder.CreateServer(options, handlerBeforeAuth, properties);
         }
 
-        private static TestServer CreateServer(ApiKeyOptions options, Func<HttpContext, Func<Task>, Task> handlerBeforeAuth)
+        private static Action<ApiKeyOptions> GetOptions()
         {
-            var builder = new WebHostBuilder()
-                .Configure(app =>
-                {
-                    if (handlerBeforeAuth != null)
-                    {
-                        app.Use(handlerBeforeAuth);
-                    }
-
-                    if (options != null)
-                    {
-                        app.UseApiKeyAuthentication(options);
-                    }
-
-                    app.Use(async (context, next) =>
-                    {
-                        if (context.Request.Path == new PathString("/checkforerrors"))
-                        {
-                            var authContext = new AuthenticateContext(Microsoft.AspNetCore.Http.Authentication.AuthenticationManager.AutomaticScheme);
-                            await context.Authentication.AuthenticateAsync(authContext);
-                            if (authContext.Error != null)
-                            {
-                                throw new Exception("Failed to authenticate", authContext.Error);
-                            }
-                            return;
-                        }
-                        else if (context.Request.Path == new PathString("/oauth"))
-                        {
-                            if (context.User == null ||
-                                context.User.Identity == null ||
-                                !context.User.Identity.IsAuthenticated)
-                            {
-                                context.Response.StatusCode = 401;
-
-                                return;
-                            }
-
-                            var identifier = context.User.FindFirst(ClaimTypes.NameIdentifier);
-                            if (identifier == null)
-                            {
-                                context.Response.StatusCode = 500;
-
-                                return;
-                            }
-
-                            await context.Response.WriteAsync(identifier.Value);
-                        }
-                        else if (context.Request.Path == new PathString("/unauthorized"))
-                        {
-                            // Simulate Authorization failure 
-                            var result = await context.Authentication.AuthenticateAsync(ApiKeyDefaults.AuthenticationScheme);
-                            await context.Authentication.ChallengeAsync(ApiKeyDefaults.AuthenticationScheme);
-                        }
-                        else if (context.Request.Path == new PathString("/signIn"))
-                        {
-                            Assert.ThrowsAsync<NotSupportedException>(() => context.Authentication.SignInAsync(ApiKeyDefaults.AuthenticationScheme, new ClaimsPrincipal()));
-                        }
-                        else if (context.Request.Path == new PathString("/signOut"))
-                        {
-                            Assert.ThrowsAsync<NotSupportedException>(() => context.Authentication.SignOutAsync(ApiKeyDefaults.AuthenticationScheme));
-                        }
-                        else
-                        {
-                            await next();
-                        }
-                    });
-                })
-                .ConfigureServices(services => services.AddAuthentication());
-
-            return new TestServer(builder);
-        }
-        class BlobTokenValidator : ISecurityApiKeyValidator
-        {
-            private Action<string> _tokenValidator;
-            public BlobTokenValidator()
+            return opt =>
             {
-
-            }
-
-            public BlobTokenValidator(Action<string> tokenValidator)
-            {
-                _tokenValidator = tokenValidator;
-            }
-
-            public bool CanReadApiKey(string apiKey)
-            {
-                return true;
-            }
-
-            public ClaimsPrincipal ValidateApiKey(ApiKeyValidationContext context, string apiKey, out ValidatedApiKey validatedApiKey)
-            {
-                validatedApiKey = new ValidatedApiKey();
-                _tokenValidator?.Invoke(apiKey);
-                var claims = new[]
-                {
-                    // Make sure to use a different name identifier
-                    // than the one defined by CustomTokenValidated.
-                    new Claim(ClaimTypes.NameIdentifier, "Bob le Tout Puissant"),
-                    new Claim(ClaimTypes.Email, "bob@contoso.com"),
-                    new Claim(ClaimsIdentity.DefaultNameClaimType, "bob"),
-                };
-
-                return new ClaimsPrincipal(new ClaimsIdentity(claims, context.Options.AuthenticationScheme));
-            }
-        }
-        class InvalidApiKeyValidator : ISecurityApiKeyValidator
-        {
-            private Type errorType;
-
-            public InvalidApiKeyValidator(Type errorType)
-            {
-                this.errorType = errorType;
-            }
-            public InvalidApiKeyValidator()
-            {
-            }
-
-            public ClaimsPrincipal ValidateApiKey(ApiKeyValidationContext context, string apiKey, out ValidatedApiKey validatedApiKey)
-            {
-                if (errorType != null)
-                {
-                    var err = (Exception)Activator.CreateInstance(errorType);
-                    throw err;
-                }
-                throw new Exception();
-            }
-
-            public bool CanReadApiKey(string apiKey)
-            {
-                return true;
-            }
-        }
-
-        private static ApiKeyOptions GetOptions()
-        {
-            return new ApiKeyOptions
-            {
-                ApiKeys = { { "1", new ApiKeyInfo { Claims = new[] { new Claim(ClaimTypes.NameIdentifier, "Chet") } } } }
+                opt.ApiKeys = new Dictionary<string, ApiKeyInfo>() { { "1", new ApiKeyInfo { Claims = new[] { new Claim(ClaimTypes.NameIdentifier, "Chet") } } } };
             };
         }
 
+        // TODO: see if we can share the TestExtensions SendAsync method (only diff is auth header)
+        private static async Task<Transaction> SendAsync(TestServer server, string uri, string authorizationHeader = null)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, uri);
+            if (!string.IsNullOrEmpty(authorizationHeader))
+            {
+                request.Headers.Add("Authorization", authorizationHeader);
+            }
+
+            var transaction = new Transaction
+            {
+                Request = request,
+                Response = await server.CreateClient().SendAsync(request),
+            };
+
+            transaction.ResponseText = await transaction.Response.Content.ReadAsStringAsync();
+
+            if (transaction.Response.Content != null &&
+                transaction.Response.Content.Headers.ContentType != null &&
+                transaction.Response.Content.Headers.ContentType.MediaType == "text/xml")
+            {
+                transaction.ResponseElement = XElement.Parse(transaction.ResponseText);
+            }
+
+            return transaction;
+        }
     }
 }

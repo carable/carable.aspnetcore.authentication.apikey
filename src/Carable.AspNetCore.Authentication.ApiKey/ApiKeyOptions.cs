@@ -1,23 +1,21 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using System.Collections.Generic;
 using Microsoft.Extensions.Primitives;
+using Microsoft.AspNetCore.Authentication;
 
 namespace Carable.AspNetCore.Authentication.ApiKey
 {
-    public class ApiKeyOptions : AuthenticationOptions
+    public class ApiKeyOptions : AuthenticationSchemeOptions
     {
-        public ApiKeyOptions()
-        {
-            AuthenticationScheme = ApiKeyDefaults.AuthenticationScheme;
-            AutomaticAuthenticate = true;
-            AutomaticChallenge = true;
-        }
-
         /// <summary>
         /// Gets or sets the challenge to put in the "WWW-Authenticate" header.
         /// </summary>
         public string Challenge { get; set; } = ApiKeyDefaults.AuthenticationScheme;
-        public IApiKeyEvents Events { get; set; } = new ApiKeyEvents();
+        public new ApiKeyEvents Events
+        {
+            get => (ApiKeyEvents)base.Events;
+            set => base.Events = value;
+        }
         public IDictionary<string, ApiKeyInfo> ApiKeys { get; set; } = new Dictionary<string, ApiKeyInfo>();
         /// <summary>
         /// Defines whether the api key validation errors should be returned to the caller.
@@ -30,5 +28,6 @@ namespace Carable.AspNetCore.Authentication.ApiKey
         /// Gets the ordered list of <see cref="ISecurityApiKeyValidator"/> used to validate access tokens.
         /// </summary>
         public IList<ISecurityApiKeyValidator> SecurityValidators { get; } = new List<ISecurityApiKeyValidator> { new DefaultSecurityValidator() };
+        public string AuthenticationScheme { get; set; } = ApiKeyDefaults.AuthenticationScheme;
     }
 }

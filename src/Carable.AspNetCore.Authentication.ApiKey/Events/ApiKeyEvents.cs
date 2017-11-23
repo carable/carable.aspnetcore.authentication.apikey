@@ -10,7 +10,7 @@ namespace Carable.AspNetCore.Authentication.ApiKey
     /// <summary>
     /// Specifies events which the <see cref="ApiKeyMiddleware"/> invokes to enable developer control over the authentication process.
     /// </summary>
-    public class ApiKeyEvents : IApiKeyEvents
+    public class ApiKeyEvents 
     {
         private static readonly Task CompletedTask =
 #if NET451

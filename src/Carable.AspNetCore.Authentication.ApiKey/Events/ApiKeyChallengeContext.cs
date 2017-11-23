@@ -2,20 +2,22 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Authentication;
 
 namespace Carable.AspNetCore.Authentication.ApiKey
 {
-    public class ApiKeyChallengeContext : BaseApiKeyContext
+    public class ApiKeyChallengeContext : PropertiesContext<ApiKeyOptions>
     {
-        public ApiKeyChallengeContext(HttpContext context, ApiKeyOptions options, AuthenticationProperties properties)
-            : base(context, options)
+        public ApiKeyChallengeContext(
+            HttpContext context,
+            AuthenticationScheme scheme,
+            ApiKeyOptions options,
+            AuthenticationProperties properties)
+            : base(context, scheme, options, properties)
         {
-            Properties = properties;
         }
 
-        public AuthenticationProperties Properties { get; }
 
         /// <summary>
         /// Any failures encountered during the authentication process.
@@ -41,5 +43,14 @@ namespace Carable.AspNetCore.Authentication.ApiKey
         /// WWW-Authenticate header. This property is always null unless explicitly set.
         /// </summary>
         public string ErrorUri { get; set; }
+        /// <summary>
+        /// If true, will skip any default logic for this challenge.
+        /// </summary>
+        public bool Handled { get; private set; }
+
+        /// <summary>
+        /// Skips any default logic for this challenge.
+        /// </summary>
+        public void HandleResponse() => Handled = true;
     }
 }
